@@ -1,49 +1,48 @@
 use std::{
-    collections::HashMap,
-    fs::{self},
-    path::Path,
+    collections::HashMap, // Importing HashMap from the standard library
+    fs::{self}, // Importing fs module from the standard library
+    path::Path, // Importing Path module from the standard library
 };
 
-use ripemd::Ripemd160;
-use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
-use sha2::{Digest, Sha256};
-use walkdir::WalkDir;
+use ripemd::Ripemd160; // Importing Ripemd160 hash function
+use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1}; // Importing cryptographic functions from secp256k1 crate
+use sha2::{Digest, Sha256}; // Importing cryptographic functions from sha2 crate
+use walkdir::WalkDir; // Importing WalkDir for directory traversal
 
-use crate::{error::Result, transaction::Transaction};
-
-use self::{
-    p2pkh::input_verification_p2pkh, p2wpkh::input_verification_p2wpkh,
-    p2wsh::input_verification_p2wsh,
+use crate::{error::Result, transaction::Transaction}; // Importing Transaction and Result types from the crate
+use self::{ // Importing modules from the current crate
+    p2pkh::input_verification_p2pkh, // Importing function from p2pkh module
+    p2wpkh::input_verification_p2wpkh, // Importing function from p2wpkh module
+    p2wsh::input_verification_p2wsh, // Importing function from p2wsh module
 };
 
-pub mod p2pkh;
-pub mod p2sh;
-pub mod p2wpkh;
-pub mod p2wsh;
+pub mod p2pkh; // Importing p2pkh module
+pub mod p2sh; // Importing p2sh module
+pub mod p2wpkh; // Importing p2wpkh module
+pub mod p2wsh; // Importing p2wsh module
 
 // HASH160
-pub fn hash160(data: &[u8]) -> Vec<u8> {
-    Ripemd160::digest(&Sha256::digest(data)).to_vec()
+pub fn hash160(data: &[u8]) -> Vec<u8> { // Defining a function to compute hash160
+    Ripemd160::digest(&Sha256::digest(data)).to_vec() // Computing the hash160
 }
 
 // HASH256
-pub fn double_sha256(data: &[u8]) -> Vec<u8> {
-    Sha256::digest(&Sha256::digest(data)).to_vec()
+pub fn double_sha256(data: &[u8]) -> Vec<u8> { // Defining a function to compute double SHA256
+    Sha256::digest(&Sha256::digest(data)).to_vec() // Computing the double SHA256
 }
 
 // SHA256
-pub fn single_sha256(data: &[u8]) -> Vec<u8> {
-    Sha256::digest(data).to_vec()
+pub fn single_sha256(data: &[u8]) -> Vec<u8> { // Defining a function to compute SHA256
+    Sha256::digest(data).to_vec() // Computing the SHA256
 }
 
 // OPCHECKSIG OPCODE IMPLEMENTATION
-pub fn op_checksig(
-    stack: &mut Vec<Vec<u8>>,
-    tx: Transaction,
-    tx_input_index: usize,
-    input_type: &str,
-) -> Result<bool> {
-    // CREATE DUMMY PUBKEY AND SIGNATURES INCASE THEIR FORMAT IS NOT AS EXPECTED
+pub fn op_checksig( // Defining a function to implement op_checksig opcode
+    stack: &mut Vec<Vec<u8>>, // Mutable reference to a stack of byte vectors
+    tx: Transaction, // Transaction object
+    tx_input_index: usize, // Index of the transaction input
+    input_type: &str, // Type of the input
+) -> Result<bool> { // Result indicating success or failure
 
     let dummy_pubkey: PublicKey = PublicKey::from_slice(
         &hex::decode("03bf68f1ce783df58a2459d549d5c655a1edc0f0cf4d79421fe978d358d79ee42a").unwrap(),
@@ -83,13 +82,12 @@ pub fn op_checksig(
 }
 
 // OPMULTICHECKSIG OPCODE IMPLEMENTATION
-pub fn op_checkmultisig(
-    stack: &mut Vec<Vec<u8>>,
-    tx: Transaction,
-    tx_input_index: usize,
-    input_type: &str,
-) -> Result<bool> {
-    // CREATE DUMMY PUBKEY AND SIGNATURES INCASE THEIR FORMAT IS NOT AS EXPECTED
+pub fn op_checkmultisig( // Defining a function to implement op_checkmultisig opcode
+    stack: &mut Vec<Vec<u8>>, // Mutable reference to a stack of byte vectors
+    tx: Transaction, // Transaction object
+    tx_input_index: usize, // Index of the transaction input
+    input_type: &str, // Type of the input
+) -> Result<bool> { // Result indicating success or failure
 
     let dummy_pubkey: PublicKey = PublicKey::from_slice(
         &hex::decode("03bf68f1ce783df58a2459d549d5c655a1edc0f0cf4d79421fe978d358d79ee42a").unwrap(),
@@ -567,29 +565,7 @@ pub fn verify_tx(tx: Transaction) -> Result<bool> {
             }
         }
     }
-    // if tx_type == _p2sh {
-    //     if tx.vin[0].witness != None {
-    //         if tx.vin[0].witness.clone().unwrap().len() > 2 {
-    //             return Ok(false);
-    //         }
-    //     }
-
-    //     for input_index in 0..tx.vin.len() {
-    //         match input_verification_p2sh(input_index, tx.clone()) {
-    //             Ok(false) => {
-    //                 return Ok(false);
-    //             }
-
-    //             Ok(true) => {
-    //                 v_result = true;
-    //             }
-
-    //             Err(_) => {
-    //                 return Ok(false);
-    //             }
-    //         }
-    //     }
-    // }
+ 
     if tx_type == _p2wpkh {
         for input_index in 0..tx.vin.len() {
             match input_verification_p2wpkh(input_index, tx.clone()) {
