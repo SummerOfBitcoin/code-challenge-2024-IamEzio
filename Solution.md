@@ -25,4 +25,8 @@ The objective of this assignment is to validate the transactions in the mempool 
    - Insert the coinbase transaction and all txids into the output.txt file.
 
 
+## RESULTS
+SCORE: 101
+
+
 I have used Chatgpt to add comments in the codebase :)
