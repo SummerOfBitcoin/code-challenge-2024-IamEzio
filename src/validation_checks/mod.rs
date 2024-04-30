@@ -160,7 +160,6 @@ pub fn op_checkmultisig( // Defining a function to implement op_checkmultisig op
     Ok(result)
 }
 
-// FUNCION TO CREATE SERIALISED TRIMMED TXS AS PER THE SCRIPT TYPE FOR SIGHASH_ALL
 pub fn trimmed_tx(
     tx: Transaction,
     tx_input_index: usize,
@@ -476,20 +475,11 @@ pub fn trimmed_tx(
             trimmed_tx.extend_from_slice(&hashprevouts);
             trimmed_tx.extend_from_slice(&hashsequence);
 
-            // OUTPOINTS FOR THE INPUT BEING VERIFIED
-
-            // SUBPARTS :-
-
-            // PUSING THE REVERSED TXID
             let mut txid_bytes_reversed_sig = hex::decode(&tx.vin[tx_input_index].txid)?;
             txid_bytes_reversed_sig.reverse();
 
             trimmed_tx.extend_from_slice(&txid_bytes_reversed_sig);
             trimmed_tx.extend(tx.vin[tx_input_index].vout.to_le_bytes());
-
-            // SCRIPT CODE
-
-            // EXTRACTING THE WITNESS SCRIPT FROM THE WITNESS
 
             let witness = tx.vin[tx_input_index].witness.clone().unwrap();
 
@@ -500,13 +490,9 @@ pub fn trimmed_tx(
             trimmed_tx.push(script_code_bytes.len().try_into()?);
             trimmed_tx.extend_from_slice(&script_code_bytes);
 
-            // PUSHING THE AMOUNT
             trimmed_tx.extend(tx.vin[tx_input_index].prevout.value.to_le_bytes());
 
-            // PUSHING THE SEQUENCE
             trimmed_tx.extend(tx.vin[tx_input_index].sequence.to_le_bytes());
-
-            // PUSHING THE OUTPUTS IN THE SEQUENCE
 
             let mut outputs: Vec<u8> = Vec::new();
             for output in tx.vout.iter() {
@@ -521,14 +507,12 @@ pub fn trimmed_tx(
 
             trimmed_tx.extend_from_slice(&hash_outputs);
 
-            // PUSHING THE LOCKTIME
             trimmed_tx.extend(tx.locktime.to_le_bytes());
         }
     }
     Ok(trimmed_tx)
 }
 
-// FINAL VERIFICATION FUNCTION WHICH DIRECTS TXS AS PER THEIR SCRIPT TYPE
 pub fn verify_tx(tx: Transaction) -> Result<bool> {
     let _p2pkh = "p2pkh".to_string();
     let _p2sh = "p2sh".to_string();
@@ -601,8 +585,6 @@ pub fn verify_tx(tx: Transaction) -> Result<bool> {
         }
     }
     if tx_type == _p2tr {
-        // CHECK IF THE WITNESS ITEMS LENGTH IS <255
-
         for input in tx.vin.iter() {
             let witness = input.witness.clone().unwrap();
             for item in witness {
@@ -619,7 +601,70 @@ pub fn verify_tx(tx: Transaction) -> Result<bool> {
     Ok(v_result)
 }
 
-// REJECTS TXS IF GAS FEES IS LESS THAN 1500
+
+pub fn verify_tx2(tx: Transaction) -> Result<bool> {
+    let _p2pkh = "p2pkh".to_string();
+    let _p2sh = "p2sh".to_string();
+    let _p2wpkh = "v0_p2wpkh".to_string();
+    let _p2wsh = "v0_p2wsh".to_string();
+    let _p2tr = "v1_p2tr".to_string();
+    let mut s_sats: u64 = 0;
+    let mut r_sats: u64 = 0;
+
+    let tx_type = tx.vin[0].prevout.scriptpubkey_type.clone();
+    let mut v_result = false;
+
+    if gas_fees_check(&tx) != true {
+        return Ok(false);
+    }
+
+    if tx_type == _p2pkh {
+        for input_index in 0..tx.vin.len() {
+            match input_verification_p2pkh(tx.clone(), input_index) {
+                Ok(false) => {
+                    return Ok(false);
+                }
+                Ok(true) => {
+                    v_result = true;
+                }
+                Err(_) => {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+ 
+    if tx_type == _p2wsh {
+        for input_index in 0..tx.vin.len() {
+            match input_verification_p2wsh(input_index, tx.clone()) {
+                Ok(false) => {
+                    return Ok(false);
+                }
+                Ok(true) => {
+                    v_result = true;
+                }
+
+                Err(_) => {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    if tx_type == _p2tr {
+        for input in tx.vin.iter() {
+            let witness = input.witness.clone().unwrap();
+            for item in witness {
+                let item_bytes = hex::decode(&item)?;
+                if item_bytes.len() <= 255 {
+                    return Ok(false);
+                }
+            }
+        }
+        v_result = true;
+    }
+    Ok(v_result)
+}
+
 fn gas_fees_check(tx: &Transaction) -> bool {
     let mut s_sats: u64 = 0;
     let mut r_sats: u64 = 0;
@@ -645,14 +690,11 @@ fn gas_fees_check(tx: &Transaction) -> bool {
     }
 }
 
-// ITERATES THROUGH THE WHOLE MEMPOOL AND PUTS THE VALID TRANSACTIONS IN THE VALID-MEMPOOL FOLDER
 pub fn all_transaction_verification() -> Result<()> {
     let mempool_dir = "./mempool";
 
-    // THIS HASH-MAP WILL BE USED TO REJECT DOUBLE SPENDS
     let mut spends: HashMap<String, String> = HashMap::new();
 
-    // ITERATE THROUGH THE DIRECTORY
     'outer: for entry in WalkDir::new(mempool_dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_file() {
@@ -662,7 +704,6 @@ pub fn all_transaction_verification() -> Result<()> {
                         for input in &transaction.vin {
                             let input_key = format!("{}{}", input.txid, input.vout);
 
-                            // CHECKS IF THE TXID IS ALREADY INN THE HASH-MAP
                             match spends.get(&input_key) {
                                 Some(existing_txid)
                                     if path.display().to_string() != *existing_txid =>
@@ -674,7 +715,6 @@ pub fn all_transaction_verification() -> Result<()> {
                                 }
                             }
                         }
-                        // VERIFIES THE TX
                         let result = verify_tx(transaction)?;
                         if result == true {
                             if let Some(filename) = path.file_name() {
@@ -691,67 +731,4 @@ pub fn all_transaction_verification() -> Result<()> {
         }
     }
     Ok(())
-}
-
-// TO TEST MY CODE DURING DEVELOPMENT
-#[cfg(test)]
-mod test {
-    use std::{collections::HashMap, fs, path::Path};
-
-    use walkdir::WalkDir;
-
-    use super::*;
-
-    #[test]
-    fn test_all_transaction_verification() -> Result<()> {
-        let mempool_dir = "./mempool";
-        let mut spends: HashMap<String, String> = HashMap::new();
-        'outer: for entry in WalkDir::new(mempool_dir).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_file() {
-                match fs::read_to_string(path) {
-                    Ok(contents) => {
-                        match serde_json::from_str::<Transaction>(&contents) {
-                            Ok(transaction) => {
-                                // Check if all inputs' prevout scriptpubkey_type are .p2sh
-                                let all_p2sh = true;
-                                if all_p2sh {
-                                    for input in &transaction.vin {
-                                        let input_key = format!("{}{}", input.txid, input.vout);
-                                        match spends.get(&input_key) {
-                                            Some(existing_txid)
-                                                if path.display().to_string() != *existing_txid =>
-                                            {
-                                                // d_spends += 1;
-                                                continue 'outer;
-                                            }
-                                            _ => {
-                                                spends
-                                                    .insert(input_key, path.display().to_string());
-                                            }
-                                        }
-                                    }
-
-                                    let result = verify_tx(transaction)?;
-
-                                    if result == true {
-                                        if let Some(filename) = path.file_name() {
-                                            let valid_mempool_dir = Path::new("./valid-mempool");
-                                            let destination_path = valid_mempool_dir.join(filename);
-                                            fs::copy(&path, &destination_path)?;
-                                        }
-                                    } else {
-                                    }
-                                }
-                            }
-                            Err(_e) => {}
-                        }
-                    }
-                    Err(_e) => {}
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
